@@ -1,9 +1,10 @@
-#!/usr/bin/env python3
+#!usr/bin/env python3
 import random
 from collections import namedtuple
 
 import multilist
-
+import pprint
+import pickle
 
 class Schedule(object):
     SlotIndex = namedtuple('SlotIndex', ['time', 'room'])
@@ -17,7 +18,8 @@ class Schedule(object):
         self._n_rooms = schedule._n_rooms
         self._n_times = schedule._n_times
         self._n_slots = schedule._n_slots
-        self.slots = schedule.slots[:]
+        #self.slots = multilist.MultiList(schedule._n_rooms, schedule._n_times)
+        self.slots = schedule.slots
         self.allocations = schedule.allocations
         self.allocation_maps = schedule.allocation_maps.copy()
         return self
@@ -41,6 +43,18 @@ class Schedule(object):
         for alloc, slot in zip(self.allocations, choices):
             self.slots[slot] = alloc
             self.allocation_maps[alloc] = slot
+
+
+    def __str__(self):
+        string = ""
+        count = 0
+        for key in self.allocation_maps:
+            b, t, s = key
+            string = string + str(b.name) + " " + str(t.name) + " " + str(s.name) + " " +  str(self.allocation_maps[key]) + "|"
+            count = count + 1
+            if (count % self._n_rooms == 0):
+                string = string + "\n"
+        return string
 
     def slot_indices(self, slot):
         """
@@ -76,13 +90,19 @@ class Schedule(object):
         penalties['clash_time_batch'] = -1000
         fitness = 0
         # teacher time clashes
-        for time_slot in self.slots[(None, None): (None, None)]:
+        for time_slot in self.slots[(None, None):(None, None)]:
+        #for time_slot in self.slots:
+            #print (type(time_slot))
+            #print time_slot
+
             teachers = dict()
             for allocation in time_slot:
-                try:
-                    teachers[allocation.teacher] += 1
-                except KeyError:
-                    teachers[allocation.teacher] = 1
+                #print allocation
+                if(allocation is not None):
+                    try:
+                        teachers[allocation[1]] += 1
+                    except KeyError:
+                        teachers[allocation[1]] = 1
             violations = sum((
                 (count - 1) for count in teachers.values() if count > 1))
             fitness += violations * penalties['clash_time_teacher']
@@ -90,10 +110,11 @@ class Schedule(object):
         for time_slot in self.slots[(None, None): (None, None)]:
             batches = dict()
             for allocation in time_slot:
-                try:
-                    batches[allocation.batch] += 1
-                except KeyError:
-                    batches[allocation.batch] = 1
+                if(allocation is not None):
+                    try:
+                        batches[allocation[2]] += 1
+                    except KeyError:
+                        batches[allocation[2]] = 1
             violations = sum((
                 (count - 1) for count in batches.values() if count > 1))
             fitness += violations * penalties['clash_time_batch']
@@ -132,9 +153,9 @@ def swap_between(schedule_1, schedule_2, slot):
     for schedule in (schedule_1, schedule_2):
         if schedule.slots[slot] is not None:
             schedule.allocation_maps[schedule.slots[slot]] = slot
+    return schedule_1, schedule_2
 
-
-def swap_chunk(self, cross_point_1, cross_point_2, schedule_1, schedule_2):
+def swap_chunk(cross_point_1, cross_point_2, schedule_1, schedule_2):
     """
     Swap the chunk of allocations between the two
     indices crossover1(slot1) & crossover2(slot2)
@@ -149,15 +170,16 @@ def swap_chunk(self, cross_point_1, cross_point_2, schedule_1, schedule_2):
         min(cross_point_1, cross_point_2),
         max(cross_point_1, cross_point_2))
     for slot_number in range(cross_point_1, cross_point_2 + 1):
-            swap_between(child_1, child_2, slot_number)
+            child_1, child_2 = swap_between(child_1, child_2, slot_number)
     return child_1, child_2
 
-
-def crossover(self, schedule_1, schedule_2, count):
+def crossover(schedule_1, schedule_2):
     """
     Combine two parent allocations into two offsprings
     by swapping randomly determined chunk.
     """
-    cross_point_1 = random.randrange(self._n_slots - 1)
-    cross_point_2 = random.randrange(cross_point_1 + 1, self._n_slots)
-    swap_chunk(cross_point_1, cross_point_2, schedule_1, schedule_2)
+    cross_point_1 = random.randrange(schedule_1._n_slots - 1)
+    cross_point_2 = random.randrange(cross_point_1 + 1, schedule_1._n_slots)
+    print "Crosspoints are: ", cross_point_1, " ", cross_point_2
+    return swap_chunk(cross_point_1, cross_point_2, schedule_1, schedule_2)
+    #return swap_chunk(2, 10, schedule_1, schedule_2)

@@ -94,7 +94,7 @@ class MultiList(object):
                 (x is None) or (
                     isinstance(x, tuple) and
                     (len(x) == 2) and
-                    (x[1] is None))
+                    (x[1] is None or x[0] is None))
                 for x in (start, stop)):
             return False
         return True
